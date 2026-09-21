@@ -18,7 +18,6 @@
         "Expense Code"
     ];
 
-
     /**
      * Extracts only the field value, ignoring edit buttons and hidden assistive text.
      */
@@ -28,36 +27,47 @@
         
         if (!container) return;
 
-        // Specifically target the value span to avoid copying "Edit VIN" etc.
+        // Specifically target the value span
         const valueSpan = container.querySelector('.test-id__field-value');
         
         let textToCopy = '';
         if (valueSpan) {
-            // innerText excludes CSS hidden content, but we use it on the specific span 
-            // to ensure siblings like the Edit button are never reached.
-            textToCopy = valueSpan.innerText.replace('Preview', '').trim(); //quick hack to remove ·preview· text when copying customer name
-            textToCopy = valueSpan.innerText.trim();
+            // Fix: Clone the element to manipulate it without affecting the UI
+            const clone = valueSpan.cloneNode(true);
+            
+            // Fix: Remove all assistive text (like "Preview") and nested buttons
+            const unwanted = clone.querySelectorAll('.slds-assistive-text, button, .slds-button');
+            unwanted.forEach(el => el.remove());
+            
+            // Get the clean text
+            textToCopy = clone.innerText.trim();
         } else {
             // Fallback: cleaning up container text if standard span isn't found
-            textToCopy = container.innerText.replace('📋', '').trim();
+            // We still want to avoid copying the icon and the extension's own button text
+            const clone = container.cloneNode(true);
+            const unwanted = clone.querySelectorAll('.copy-btn, .slds-assistive-text, button');
+            unwanted.forEach(el => el.remove());
+            textToCopy = clone.innerText.trim();
         }
 
-        navigator.clipboard.writeText(textToCopy).then(() => {
-            const originalTitle = button.title;
-            button.title = 'Copied!';
-            button.innerText = '✅';
-            setTimeout(() => {
-                button.title = originalTitle;
-                button.innerText = '📋';
-            }, 1000);
-        });
+        if (textToCopy) {
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const originalTitle = button.title;
+                const originalText = button.innerText;
+                button.title = 'Copied!';
+                button.innerText = '✅';
+                setTimeout(() => {
+                    button.title = originalTitle;
+                    button.innerText = originalText;
+                }, 1000);
+            });
+        }
     };
 
     /**
      * Checks if a field should have a copy button based on the configuration.
      */
     const shouldAddButton = (element) => {
-        // Find the label text for this form element
         const formElement = element.closest('.slds-form-element');
         if (!formElement) return false;
         
@@ -78,7 +88,6 @@
             if (shouldAddButton(control)) {
                 control.setAttribute('data-has-copy-btn', 'true');
                 
-                // Ensure layout allows the button to sit at the end
                 control.style.display = 'flex';
                 control.style.alignItems = 'center';
 
@@ -86,11 +95,9 @@
                 btn.className = 'copy-btn slds-button slds-button_icon';
                 btn.innerText = '📋';
                 
-                // Get field name for the tooltip
                 const label = control.closest('.slds-form-element').querySelector('.test-id__field-label');
                 btn.title = `Copy ${label ? label.innerText : 'Field'}`;
 
-                // Salesforce-consistent styling
                 Object.assign(btn.style, {
                     marginLeft: '6px',
                     cursor: 'pointer',
@@ -109,10 +116,8 @@
         });
     };
 
-    // Monitor for changes (Salesforce dynamic page loads)
     const observer = new MutationObserver(() => injectButtons());
     observer.observe(document.body, { childList: true, subtree: true });
 
-    // Initial injection
     injectButtons();
 })();
